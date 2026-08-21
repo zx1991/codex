@@ -29,6 +29,7 @@ pub enum SlashCommand {
     Import,
     Hooks,
     Review,
+    Reader,
     Rename,
     New,
     Archive,
@@ -119,6 +120,7 @@ impl SlashCommand {
             SlashCommand::Hooks => "view and manage lifecycle hooks",
             SlashCommand::Daemon => "Manage the local background server",
             SlashCommand::Warnings => "view retained warnings and diagnostic details",
+            SlashCommand::Reader => "open a local text file in the single-line reader",
             SlashCommand::Status => "show current session configuration and token usage",
             SlashCommand::Cd => "change the current working directory",
             SlashCommand::Pwd => "show the current working directory",
@@ -196,6 +198,7 @@ impl SlashCommand {
                 | SlashCommand::Side
                 | SlashCommand::Btw
                 | SlashCommand::Resume
+                | SlashCommand::Reader
         )
     }
 
@@ -215,6 +218,7 @@ impl SlashCommand {
                 | SlashCommand::Pwd
                 | SlashCommand::Usage
                 | SlashCommand::Ide
+                | SlashCommand::Reader
         )
     }
 
@@ -305,7 +309,8 @@ impl SlashCommand {
             | SlashCommand::Quit
             | SlashCommand::Exit
             | SlashCommand::Side
-            | SlashCommand::Btw => true,
+            | SlashCommand::Btw
+            | SlashCommand::Reader => true,
             SlashCommand::Rollout => true,
             SlashCommand::TestApproval => true,
             SlashCommand::Agents | SlashCommand::MultiAgents => true,

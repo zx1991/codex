@@ -897,6 +897,7 @@ See the Codex keymap documentation for supported actions and examples."
             terminal_size_tags: tui.terminal_size_tags.clone(),
             app_event_tx,
             chat_widget,
+            reader: None,
             workspace_command_runner: Some(workspace_command_runner),
             config,
             local_settings,

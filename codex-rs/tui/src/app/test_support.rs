@@ -29,6 +29,7 @@ pub(crate) async fn make_test_app() -> Box<App> {
         terminal_size_tags: Vec::new(),
         app_event_tx,
         chat_widget,
+        reader: None,
         workspace_command_runner: None,
         launch_cwd: config.cwd.to_path_buf(),
         runtime_working_directory_override: None,
