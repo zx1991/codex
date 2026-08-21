@@ -437,6 +437,11 @@ pub(crate) enum AppEvent {
     /// Copy a diagnostic and acknowledge in the footer, without appending history.
     CopyWarning(String),
 
+    /// Open a local text file in the single-line reader.
+    OpenReader {
+        path: PathBuf,
+    },
+
     /// Export all current-thread history to the selected destination.
     ExportTranscript {
         destination: TranscriptExportDestination,

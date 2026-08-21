@@ -348,6 +348,10 @@ impl App {
         app_server: &mut AppServerSession,
         key_event: KeyEvent,
     ) {
+        if self.handle_reader_key_event(tui, key_event) {
+            return;
+        }
+
         if self.chat_widget.fork_in_progress {
             return;
         }

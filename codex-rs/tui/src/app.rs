@@ -72,7 +72,9 @@ use crate::multi_agents::previous_agent_shortcut_matches;
 use crate::multi_agents::sub_agent_activity_display;
 use crate::pager_overlay::Overlay;
 use crate::render::highlight::highlight_bash_to_lines;
+use crate::render::renderable::FlexRenderable;
 use crate::render::renderable::Renderable;
+use crate::render::renderable::RenderableItem;
 use crate::resume_picker::SessionSelection;
 use crate::resume_picker::SessionTarget;
 use crate::session_state::ThreadSessionState;
@@ -246,6 +248,7 @@ mod realtime_settings;
 mod reasoning_replay;
 mod recap;
 mod reconnect;
+mod reader;
 mod replay_filter;
 mod resize_reflow;
 mod resume_config;
@@ -559,6 +562,7 @@ pub(crate) struct App {
     pub(crate) session_telemetry: SessionTelemetry,
     pub(crate) app_event_tx: AppEventSender,
     pub(crate) chat_widget: ChatWidget,
+    reader: Option<reader::Reader>,
     workspace_command_runner: Option<WorkspaceCommandRunner>,
     /// Legacy bootstrap and server-setting inputs; local preferences live in `local_settings`.
     pub(crate) config: Config,
@@ -1223,7 +1227,14 @@ impl App {
         render: impl FnOnce(u16, &dyn Renderable) -> T,
     ) -> T {
         let chat_widget = self.chat_widget.as_renderable();
-        render(chat_widget.desired_height(width), &chat_widget)
+        let mut renderable = FlexRenderable::new();
+        if let Some(reader) = self.reader.as_ref() {
+            renderable.push(/*flex*/ 0, RenderableItem::Borrowed(reader));
+        } else {
+            renderable.push(/*flex*/ 0, RenderableItem::Owned(Box::new(())));
+        }
+        renderable.push(/*flex*/ 1, chat_widget);
+        render(renderable.desired_height(width), &renderable)
     }
 }
 

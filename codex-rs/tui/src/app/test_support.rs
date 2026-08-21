@@ -35,6 +35,7 @@ pub(crate) async fn make_test_app() -> App {
         session_telemetry,
         app_event_tx,
         chat_widget,
+        reader: None,
         workspace_command_runner: None,
         launch_cwd: config.cwd.to_path_buf(),
         runtime_working_directory_override: None,
