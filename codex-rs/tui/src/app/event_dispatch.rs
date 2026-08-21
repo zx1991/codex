@@ -194,6 +194,9 @@ impl App {
             AppEvent::OpenTranscriptExportFilePrompt => {
                 self.chat_widget.show_transcript_export_file_prompt();
             }
+            AppEvent::OpenReader { path } => {
+                self.open_reader(tui, path);
+            }
             AppEvent::ExportTranscript { destination } => {
                 if let Err(error) = self.export_transcript(app_server, destination).await {
                     self.chat_widget

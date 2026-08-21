@@ -344,6 +344,11 @@ pub(crate) enum AppEvent {
     /// Open the filename prompt for an on-demand Markdown transcript export.
     OpenTranscriptExportFilePrompt,
 
+    /// Open a local text file in the single-line reader.
+    OpenReader {
+        path: PathBuf,
+    },
+
     /// Export all current-thread history to the selected destination.
     ExportTranscript {
         destination: TranscriptExportDestination,

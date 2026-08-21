@@ -517,6 +517,7 @@ See the Codex keymap documentation for supported actions and examples."
             session_telemetry: session_telemetry.clone(),
             app_event_tx,
             chat_widget,
+            reader: None,
             workspace_command_runner: Some(workspace_command_runner),
             config,
             local_settings,

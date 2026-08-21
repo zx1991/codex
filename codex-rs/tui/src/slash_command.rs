@@ -29,6 +29,7 @@ pub enum SlashCommand {
     Import,
     Hooks,
     Review,
+    Reader,
     Rename,
     New,
     Archive,
@@ -109,6 +110,7 @@ impl SlashCommand {
             SlashCommand::Skills => "use skills to improve how Codex performs specific tasks",
             SlashCommand::Import => "import setup, this project, and recent chats from Claude Code",
             SlashCommand::Hooks => "view and manage lifecycle hooks",
+            SlashCommand::Reader => "open a local text file in the single-line reader",
             SlashCommand::Status => "show current session configuration and token usage",
             SlashCommand::Cd => "change the current working directory",
             SlashCommand::Pwd => "show the current working directory",
@@ -183,6 +185,7 @@ impl SlashCommand {
                 | SlashCommand::Btw
                 | SlashCommand::Resume
                 | SlashCommand::SandboxReadRoot
+                | SlashCommand::Reader
         )
     }
 
@@ -200,6 +203,7 @@ impl SlashCommand {
                 | SlashCommand::Pwd
                 | SlashCommand::Usage
                 | SlashCommand::Ide
+                | SlashCommand::Reader
         )
     }
 
@@ -258,7 +262,8 @@ impl SlashCommand {
             | SlashCommand::Quit
             | SlashCommand::Exit
             | SlashCommand::Side
-            | SlashCommand::Btw => true,
+            | SlashCommand::Btw
+            | SlashCommand::Reader => true,
             SlashCommand::Rollout => true,
             SlashCommand::TestApproval => true,
             SlashCommand::Agents | SlashCommand::MultiAgents => true,

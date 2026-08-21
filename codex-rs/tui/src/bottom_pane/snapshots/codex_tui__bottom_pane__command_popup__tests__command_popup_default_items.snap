@@ -14,6 +14,7 @@ expression: commands
 /import - import setup, this project, and recent chats from Claude Code
 /hooks - view and manage lifecycle hooks
 /review - review my current changes and find issues
+/reader - open a local text file in the single-line reader
 /rename - rename the current thread
 /new - start a new chat during a conversation
 /archive - archive this session and exit

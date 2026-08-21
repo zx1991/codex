@@ -463,6 +463,9 @@ impl ChatWidget {
             SlashCommand::Skills => {
                 self.open_skills_menu();
             }
+            SlashCommand::Reader => {
+                self.add_error_message("Usage: /reader <path-to-text-file>".to_string());
+            }
             SlashCommand::Import => {
                 self.app_event_tx
                     .send(AppEvent::OpenExternalAgentConfigMigration);
@@ -986,6 +989,11 @@ impl ChatWidget {
                 self.app_event_tx
                     .send(AppEvent::BeginWindowsSandboxGrantReadRoot { path: args });
             }
+            SlashCommand::Reader if !trimmed.is_empty() => {
+                self.app_event_tx.send(AppEvent::OpenReader {
+                    path: PathBuf::from(trimmed),
+                });
+            }
             SlashCommand::Pets
                 if matches!(
                     args.trim().to_ascii_lowercase().as_str(),
@@ -1167,7 +1175,8 @@ impl ChatWidget {
             | SlashCommand::App
             | SlashCommand::Rename
             | SlashCommand::Recap
-            | SlashCommand::TestApproval => QueueDrain::Continue,
+            | SlashCommand::TestApproval
+            | SlashCommand::Reader => QueueDrain::Continue,
             SlashCommand::Cd => match self.thread_id {
                 Some(thread_id) if self.can_change_working_directory(thread_id) => QueueDrain::Stop,
                 _ => QueueDrain::Continue,
