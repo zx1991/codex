@@ -404,6 +404,9 @@ impl App {
         key_event: KeyEvent,
     ) {
         let activation_key = self.routed_key_activation.take();
+        if self.handle_reader_key_event(tui, key_event) {
+            return;
+        }
         if self.chat_widget.fork_in_progress {
             return;
         }

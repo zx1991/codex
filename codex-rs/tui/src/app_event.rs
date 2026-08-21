@@ -504,6 +504,11 @@ pub(crate) enum AppEvent {
         kept: Vec<crate::history_cell::WarningEntry>,
     },
 
+    /// Open a local text file in the single-line reader.
+    OpenReader {
+        path: PathBuf,
+    },
+
     /// Export all current-thread history to the selected destination.
     ExportTranscript {
         destination: TranscriptExportDestination,
