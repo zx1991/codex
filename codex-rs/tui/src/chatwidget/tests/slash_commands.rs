@@ -80,6 +80,14 @@ fn recall_latest_after_clearing(chat: &mut ChatWidget) -> String {
     chat.bottom_pane.composer_text()
 }
 
+#[tokio::test]
+async fn bare_reader_command_reopens_the_previous_file() {
+    let (mut chat, _app_event_tx, mut rx, _op_rx) = make_chatwidget_manual_with_sender().await;
+
+    chat.dispatch_command_with_args(SlashCommand::Reader, String::new(), Vec::new());
+
+    assert_matches!(rx.try_recv(), Ok(AppEvent::OpenPreviousReader));
+}
 fn next_add_to_history_event(rx: &mut tokio::sync::mpsc::UnboundedReceiver<AppEvent>) -> String {
     loop {
         match rx.try_recv() {
