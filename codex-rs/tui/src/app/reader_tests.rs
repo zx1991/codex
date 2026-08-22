@@ -57,6 +57,22 @@ fn progress_restores_only_for_the_same_file_content() {
     assert_eq!(reset.current_page(), 1);
 }
 
+#[test]
+fn progress_remembers_the_last_reader_file() {
+    let temp = tempdir().expect("temp directory");
+    let home = temp.path().join("codex");
+    let path = temp.path().join("book.txt");
+    fs::write(&path, "reader content").expect("write book");
+
+    let reader = Reader::open(&path, &home, temp.path()).expect("open book");
+    reader.save_progress();
+
+    assert_eq!(
+        read_progress_store(&home.join(PROGRESS_FILE_NAME)).last_path,
+        Some(fs::canonicalize(path).expect("canonicalize book"))
+    );
+}
+
 #[tokio::test]
 async fn ctrl_h_hides_reader_without_consuming_composer_draft() {
     let temp = tempdir().expect("temp directory");
