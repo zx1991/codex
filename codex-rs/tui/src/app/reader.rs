@@ -29,6 +29,7 @@ const PROGRESS_FILE_NAME: &str = "reader-progress.json";
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Reader {
+    path: PathBuf,
     pages: Vec<String>,
     current_page: usize,
     visible: bool,
@@ -49,6 +50,8 @@ enum ReaderKeyAction {
 struct ProgressStore {
     #[serde(default)]
     entries: HashMap<String, ReaderProgress>,
+    #[serde(default)]
+    last_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -76,6 +79,7 @@ impl Reader {
         );
 
         Ok(Self {
+            path: canonical_path,
             pages,
             current_page,
             visible: true,
@@ -96,6 +100,7 @@ impl Reader {
                 page_grapheme_limit: PAGE_GRAPHEME_LIMIT,
             },
         );
+        store.last_path = Some(self.path.clone());
 
         let Some(parent) = self.progress_path.parent() else {
             return;
@@ -244,8 +249,12 @@ impl App {
             self.config.cwd.as_path(),
         ) {
             Ok(reader) => {
-                if let Some(previous_reader) = self.reader.replace(reader) {
+                let previous_reader = self.reader.replace(reader);
+                if let Some(previous_reader) = previous_reader {
                     previous_reader.save_progress();
+                }
+                if let Some(reader) = self.reader.as_ref() {
+                    reader.save_progress();
                 }
                 tui.frame_requester().schedule_frame();
             }
@@ -254,6 +263,25 @@ impl App {
                     .add_error_message(format!("Cannot open reader '{}': {error}", path.display()));
             }
         }
+    }
+
+    pub(super) fn open_previous_reader(&mut self, tui: &mut tui::Tui) {
+        let path = self
+            .reader
+            .as_ref()
+            .map(|reader| reader.path.clone())
+            .or_else(|| {
+                read_progress_store(&self.config.codex_home.as_path().join(PROGRESS_FILE_NAME))
+                    .last_path
+            });
+
+        let Some(path) = path else {
+            self.chat_widget
+                .add_error_message("No previous reader file to open.".to_string());
+            return;
+        };
+
+        self.open_reader(tui, path);
     }
 
     pub(super) fn handle_reader_key_event(

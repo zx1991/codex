@@ -87,6 +87,15 @@ fn dispatch_usage_and_expect_refresh(
     expect_token_activity_refresh(rx)
 }
 
+#[tokio::test]
+async fn bare_reader_command_reopens_the_previous_file() {
+    let (mut chat, _app_event_tx, mut rx, _op_rx) = make_chatwidget_manual_with_sender().await;
+
+    chat.dispatch_command_with_args(SlashCommand::Reader, String::new(), Vec::new());
+
+    assert_matches!(rx.try_recv(), Ok(AppEvent::OpenPreviousReader));
+}
+
 fn expect_token_activity_refresh(rx: &mut tokio::sync::mpsc::UnboundedReceiver<AppEvent>) -> u64 {
     match rx.try_recv() {
         Ok(AppEvent::RefreshTokenActivity { request_id }) => request_id,

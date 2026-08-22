@@ -349,6 +349,9 @@ pub(crate) enum AppEvent {
         path: PathBuf,
     },
 
+    /// Reopen the last file used by the single-line reader.
+    OpenPreviousReader,
+
     /// Export all current-thread history to the selected destination.
     ExportTranscript {
         destination: TranscriptExportDestination,

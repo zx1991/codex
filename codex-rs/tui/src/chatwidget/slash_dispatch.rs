@@ -464,7 +464,7 @@ impl ChatWidget {
                 self.open_skills_menu();
             }
             SlashCommand::Reader => {
-                self.add_error_message("Usage: /reader <path-to-text-file>".to_string());
+                self.app_event_tx.send(AppEvent::OpenPreviousReader);
             }
             SlashCommand::Import => {
                 self.app_event_tx
