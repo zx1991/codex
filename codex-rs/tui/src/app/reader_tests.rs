@@ -94,6 +94,16 @@ async fn ctrl_h_hides_reader_without_consuming_composer_draft() {
     );
     assert_eq!(app.chat_widget.composer_text_with_pending(), "draft");
 
+    let mut ctrl_h_repeat = ctrl_h;
+    ctrl_h_repeat.kind = KeyEventKind::Repeat;
+    assert!(!app.handle_reader_key_event(&mut tui, ctrl_h_repeat));
+    assert!(
+        !app.reader
+            .as_ref()
+            .expect("reader should remain hidden")
+            .visible()
+    );
+
     assert!(app.handle_reader_key_event(&mut tui, ctrl_h));
     assert!(
         app.reader
