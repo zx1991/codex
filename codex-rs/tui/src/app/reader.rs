@@ -293,7 +293,8 @@ impl App {
             return false;
         }
 
-        if is_control_key(key_event, 'h')
+        if key_event.kind == KeyEventKind::Press
+            && is_control_key(key_event, 'h')
             && let Some(reader) = self.reader.as_mut()
         {
             reader.toggle_visibility();
