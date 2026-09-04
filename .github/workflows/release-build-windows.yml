@@ -42,17 +42,19 @@ jobs:
         with:
           target: x86_64-pc-windows-msvc
 
-      - name: Build codex
+      - name: Build Windows release package
         shell: bash
         env:
           LIBSQLITE3_FLAGS: SQLITE_DISABLE_INTRINSIC
-        run: cargo build --locked --target x86_64-pc-windows-msvc --release --bin codex
+        run: |
+          just assemble-codex-package \
+            --target x86_64-pc-windows-msvc \
+            --cargo-profile release \
+            --package-dir "$RUNNER_TEMP/codex-windows-x64"
 
       - name: Upload Windows Release artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: codex-windows-x64-release
-          path: |
-            codex-rs/target/x86_64-pc-windows-msvc/release/codex.exe
-            codex-rs/target/x86_64-pc-windows-msvc/release/codex.pdb
+          path: ${{ runner.temp }}/codex-windows-x64
           if-no-files-found: error
