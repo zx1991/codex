@@ -47,7 +47,8 @@ jobs:
         env:
           LIBSQLITE3_FLAGS: SQLITE_DISABLE_INTRINSIC
         run: |
-          just assemble-codex-package \
+          CODEX_REPO_ROOT="$GITHUB_WORKSPACE" \
+            python3 "$GITHUB_WORKSPACE/scripts/build_codex_package.py" \
             --target x86_64-pc-windows-msvc \
             --cargo-profile release \
             --package-dir "$RUNNER_TEMP/codex-windows-x64"
