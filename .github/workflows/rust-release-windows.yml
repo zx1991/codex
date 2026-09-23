@@ -15,9 +15,9 @@ jobs:
     environment:
       name: bazel
       deployment: false
-    # Allow extra time while Cargo and Bazel release build paths coexist.
+    # Temporary increase from 90 minutes while Cargo and Bazel build paths coexist.
     # Reassess after the transition using Bazel release build timings.
-    timeout-minutes: 180
+    timeout-minutes: 120
     permissions:
       contents: read
     defaults:
