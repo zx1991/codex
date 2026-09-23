@@ -16,7 +16,7 @@ jobs:
   build:
     name: Build Windows Release
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/.cargo-target
     defaults:
