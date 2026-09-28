@@ -75,6 +75,35 @@ pub(in crate::app) fn buffer_text(buffer: &Buffer) -> String {
 }
 
 #[tokio::test]
+async fn reader_renders_in_owned_transcript() -> Result<()> {
+    let mut app = crate::app::test_support::make_test_app().await;
+    let temp = tempfile::tempdir()?;
+    let path = temp.path().join("reader.txt");
+    std::fs::write(&path, "reader page content")?;
+    app.reader = Some(super::super::reader::Reader::open(
+        &path,
+        temp.path(),
+        temp.path(),
+    )?);
+
+    let mut tui = crate::tui::test_support::make_test_tui()?;
+    tui.set_owned_screen(/*owned*/ true)?;
+    let size = Size::new(/*width*/ 60, /*height*/ 8);
+    tui.terminal.resize(size)?;
+    app.render_owned_transcript(&mut tui, size)?;
+
+    let rendered = buffer_text(crate::custom_terminal::test_support::last_rendered_buffer(
+        &tui.terminal,
+    ));
+    let reader_line = rendered.lines().next().unwrap_or("");
+    assert!(reader_line.contains("[1/1] reader page content"));
+    insta::assert_snapshot!(reader_line, @"[1/1] reader page content");
+
+    tui.set_owned_screen(/*owned*/ false)?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn external_writer_escape_returns_to_command_center_without_editing() -> Result<()> {
     for (detailed, scrolled, offline) in [
         (false, false, false),
