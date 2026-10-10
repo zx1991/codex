@@ -932,6 +932,11 @@ pub struct Tui {
     #[schemars(schema_with = "crate::tui_mouse_scroll::schema")]
     pub mouse_scroll_speed: Option<f64>,
 
+    /// Number of rows reserved for the local text reader. Defaults to three rows.
+    #[serde(default, deserialize_with = "deserialize_tui_reader_height")]
+    #[schemars(range(min = 1, max = 12))]
+    pub reader_height: Option<u16>,
+
     /// Copy selected transcript, footer, or composer text when the mouse button is released.
     /// Defaults to `auto`: enabled except in direct terminals known to forward their native
     /// copy shortcut (Ghostty 1.2+, Kitty on macOS, Windows Terminal, and VS Code on Windows).
@@ -1037,6 +1042,19 @@ pub struct Tui {
 
 const fn default_true() -> bool {
     true
+}
+
+fn deserialize_tui_reader_height<'de, D>(deserializer: D) -> Result<Option<u16>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let height = Option::<u16>::deserialize(deserializer)?;
+    if height.is_some_and(|height| !(1..=12).contains(&height)) {
+        return Err(serde::de::Error::custom(
+            "tui.reader_height must be between 1 and 12",
+        ));
+    }
+    Ok(height)
 }
 
 /// Settings for notices we display to users via the tui and app-server clients

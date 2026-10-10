@@ -893,6 +893,11 @@ impl App {
             self.chat_widget.acknowledge_program_status();
         }
         let idle_draw = matches!(event, TuiEvent::Draw);
+        if let TuiEvent::Key(key_event) = &event
+            && self.handle_reader_key_event(tui, *key_event)
+        {
+            return Ok(AppRunControl::Continue);
+        }
         if let TuiEvent::Key(key) = &event {
             self.backtrack.observe_pending_select_exit_key(*key);
         }
@@ -1260,6 +1265,10 @@ impl App {
         if tui.is_owned_screen() {
             return self.render_owned_transcript(tui, screen_size);
         }
+        if let Some(reader) = self.reader.as_mut() {
+            reader.set_configured_height(self.local_settings.tui.reader_height.unwrap_or(3));
+            reader.reflow(screen_size.width, reader.configured_height());
+        }
         self.chat_widget
             .empty_state_animation
             .borrow_mut()
@@ -1311,12 +1320,12 @@ impl App {
     ) -> T {
         let chat_widget = self.chat_widget.as_renderable();
         let mut renderable = FlexRenderable::new();
+        renderable.push(/*flex*/ 1, chat_widget);
         if let Some(reader) = self.reader.as_ref() {
             renderable.push(/*flex*/ 0, RenderableItem::Borrowed(reader));
         } else {
             renderable.push(/*flex*/ 0, RenderableItem::Owned(Box::new(())));
         }
-        renderable.push(/*flex*/ 1, chat_widget);
         render(renderable.desired_height(width), &renderable)
     }
 }

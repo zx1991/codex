@@ -22,21 +22,35 @@ use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
-const PAGE_GRAPHEME_LIMIT: usize = 35;
-const LINE_BREAK_MARKER: &str = "↵";
+#[cfg(test)]
+const DEFAULT_READER_HEIGHT: u16 = 3;
+#[cfg(test)]
+const DEFAULT_PAGE_WIDTH: u16 = 80;
+const LEGACY_PAGE_GRAPHEME_LIMIT: usize = 35;
 const PROGRESS_FILE_NAME: &str = "reader-progress.json";
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Reader {
     path: PathBuf,
-    pages: Vec<String>,
+    text: String,
+    pages: Vec<ReaderPage>,
     current_page: usize,
     visible: bool,
     page_input: Option<String>,
+    configured_height: u16,
+    layout_width: u16,
+    layout_height: u16,
     progress_path: PathBuf,
     progress_key: String,
     file_fingerprint: String,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct ReaderPage {
+    lines: Vec<String>,
+    start_grapheme_offset: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,35 +73,55 @@ struct ReaderProgress {
     file_fingerprint: String,
     page: usize,
     page_grapheme_limit: usize,
+    #[serde(default)]
+    grapheme_offset: Option<usize>,
 }
 
 impl Reader {
+    #[cfg(test)]
     pub(crate) fn open(path: &Path, codex_home: &Path, cwd: &Path) -> io::Result<Self> {
+        Self::open_with_layout(
+            path,
+            codex_home,
+            cwd,
+            DEFAULT_PAGE_WIDTH,
+            DEFAULT_READER_HEIGHT,
+        )
+    }
+
+    pub(super) fn open_with_layout(
+        path: &Path,
+        codex_home: &Path,
+        cwd: &Path,
+        width: u16,
+        height: u16,
+    ) -> io::Result<Self> {
         let path = resolve_path(path, cwd);
         let bytes = fs::read(&path)?;
-        let text = String::from_utf8_lossy(&bytes);
-        let pages = paginate(&text);
+        let text = normalize_text(&String::from_utf8_lossy(&bytes));
         let canonical_path = fs::canonicalize(&path).unwrap_or(path);
         let progress_key = digest(canonical_path.to_string_lossy().as_bytes());
         let file_fingerprint = digest(&bytes);
         let progress_path = codex_home.join(PROGRESS_FILE_NAME);
-        let current_page = load_page(
-            &progress_path,
-            &progress_key,
-            &file_fingerprint,
-            pages.len(),
-        );
+        let saved_offset = load_grapheme_offset(&progress_path, &progress_key, &file_fingerprint);
 
-        Ok(Self {
+        let mut reader = Self {
             path: canonical_path,
-            pages,
-            current_page,
+            text,
+            pages: Vec::new(),
+            current_page: 0,
             visible: true,
             page_input: None,
+            configured_height: height.clamp(1, 12),
+            layout_width: 0,
+            layout_height: 0,
             progress_path,
             progress_key,
             file_fingerprint,
-        })
+        };
+        reader.reflow(width, reader.configured_height);
+        reader.current_page = reader.page_for_offset(saved_offset);
+        Ok(reader)
     }
 
     pub(crate) fn save_progress(&self) {
@@ -97,7 +131,8 @@ impl Reader {
             ReaderProgress {
                 file_fingerprint: self.file_fingerprint.clone(),
                 page: self.current_page + 1,
-                page_grapheme_limit: PAGE_GRAPHEME_LIMIT,
+                page_grapheme_limit: LEGACY_PAGE_GRAPHEME_LIMIT,
+                grapheme_offset: Some(self.current_grapheme_offset()),
             },
         );
         store.last_path = Some(self.path.clone());
@@ -142,6 +177,45 @@ impl Reader {
         self.current_page + 1
     }
 
+    pub(crate) fn set_configured_height(&mut self, height: u16) {
+        let height = height.clamp(1, 12);
+        if self.configured_height != height {
+            self.configured_height = height;
+            self.reflow(self.layout_width.max(1), height);
+        }
+    }
+
+    pub(crate) fn configured_height(&self) -> u16 {
+        u16::from(self.visible) * self.configured_height
+    }
+
+    pub(crate) fn reflow(&mut self, width: u16, height: u16) {
+        let width = width.max(1);
+        let height = height.max(1);
+        if self.layout_width == width && self.layout_height == height {
+            return;
+        }
+
+        let current_offset = self.current_grapheme_offset();
+        self.pages = paginate(&self.text, width, height);
+        self.layout_width = width;
+        self.layout_height = height;
+        self.current_page = self.page_for_offset(current_offset);
+    }
+
+    fn current_grapheme_offset(&self) -> usize {
+        self.pages
+            .get(self.current_page)
+            .map_or(0, |page| page.start_grapheme_offset)
+    }
+
+    fn page_for_offset(&self, offset: usize) -> usize {
+        self.pages
+            .partition_point(|page| page.start_grapheme_offset <= offset)
+            .saturating_sub(1)
+            .min(self.pages.len().saturating_sub(1))
+    }
+
     fn handle_key_event(&mut self, key_event: KeyEvent) -> ReaderKeyAction {
         if !matches!(key_event.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
             return ReaderKeyAction::Unhandled;
@@ -152,6 +226,7 @@ impl Reader {
             return ReaderKeyAction::Handled;
         }
 
+        let max_page_digits = self.page_count().to_string().len();
         if let Some(page_input) = self.page_input.as_mut() {
             match key_event.code {
                 KeyCode::Esc => {
@@ -172,7 +247,7 @@ impl Reader {
                 KeyCode::Char(character)
                     if key_event.modifiers == KeyModifiers::NONE
                         && character.is_ascii_digit()
-                        && page_input.len() < 9 =>
+                        && page_input.len() < max_page_digits =>
                 {
                     page_input.push(character);
                 }
@@ -205,23 +280,30 @@ impl Reader {
         }
     }
 
-    fn display_line(&self) -> Line<'static> {
+    fn display_lines(&self) -> Vec<Line<'static>> {
+        let page_count = self.page_count();
         let status = match self.page_input.as_deref() {
-            Some("") => format!("[? / {}]", self.page_count()),
-            Some(page_input) => format!("[{page_input}/{}]", self.page_count()),
-            None => format!("[{}/{}]", self.current_page(), self.page_count()),
+            Some("") => format!("[?/{page_count}]"),
+            Some(page_input) => format!("[{page_input}/{page_count}]"),
+            None => format!("[{}/{}]", self.current_page(), page_count),
         };
-        let content = if self.page_input.is_some() {
-            ""
-        } else {
-            {
-                self.pages
-                    .get(self.current_page)
-                    .map(String::as_str)
-                    .unwrap_or_default()
-            }
-        };
-        Line::from(vec![status.dim(), " ".dim(), content.to_string().dim()])
+        let mut lines = self
+            .pages
+            .get(self.current_page)
+            .map(|page| page.lines.clone())
+            .unwrap_or_default();
+        lines.resize(usize::from(self.layout_height), String::new());
+        let last_line = lines
+            .last_mut()
+            .expect("reader layout has at least one row");
+        if !last_line.is_empty() {
+            last_line.push(' ');
+        }
+        last_line.push_str(&status);
+        lines
+            .into_iter()
+            .map(|line| Line::from(line.dim()))
+            .collect()
     }
 }
 
@@ -231,24 +313,29 @@ impl Renderable for Reader {
             return;
         }
         Clear.render(area, buffer);
-        Paragraph::new(self.display_line())
+        Paragraph::new(self.display_lines())
             .alignment(Alignment::Left)
             .render(area, buffer);
     }
 
     fn desired_height(&self, _width: u16) -> u16 {
-        u16::from(self.visible)
+        self.configured_height()
     }
 }
 
 impl App {
     pub(super) fn open_reader(&mut self, tui: &mut tui::Tui, path: PathBuf) {
-        match Reader::open(
+        match Reader::open_with_layout(
             &path,
             self.config.codex_home.as_path(),
             self.config.cwd.as_path(),
+            tui.terminal.last_known_screen_size.width,
+            self.local_settings.tui.reader_height.unwrap_or(3),
         ) {
-            Ok(reader) => {
+            Ok(mut reader) => {
+                reader.set_configured_height(self.local_settings.tui.reader_height.unwrap_or(3));
+                let configured_height = reader.configured_height();
+                reader.reflow(tui.terminal.last_known_screen_size.width, configured_height);
                 let previous_reader = self.reader.replace(reader);
                 if let Some(previous_reader) = previous_reader {
                     previous_reader.save_progress();
@@ -289,10 +376,6 @@ impl App {
         tui: &mut tui::Tui,
         key_event: KeyEvent,
     ) -> bool {
-        if self.overlay.is_some() || !self.chat_widget.no_modal_or_popup_active() {
-            return false;
-        }
-
         if key_event.kind == KeyEventKind::Press
             && is_control_key(key_event, 'h')
             && let Some(reader) = self.reader.as_mut()
@@ -334,23 +417,121 @@ fn is_control_key(key_event: KeyEvent, character: char) -> bool {
     ) && key_event.modifiers.contains(KeyModifiers::CONTROL)
 }
 
-fn paginate(text: &str) -> Vec<String> {
-    let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
-    let flattened = normalized
-        .split('\n')
-        .map(|line| line.split_whitespace().collect::<Vec<_>>().join(" "))
-        .collect::<Vec<_>>()
-        .join(LINE_BREAK_MARKER);
-    if flattened.is_empty() {
-        return vec![String::new()];
+fn normalize_text(text: &str) -> String {
+    text.replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .replace('\t', "    ")
+}
+
+fn paginate(text: &str, width: u16, height: u16) -> Vec<ReaderPage> {
+    let width = usize::from(width.max(1));
+    let height = usize::from(height.max(1));
+    let mut status_width = UnicodeWidthStr::width(" [1/1]");
+
+    for _ in 0..8 {
+        let pages = paginate_with_status_width(text, width, height, status_width);
+        let total = pages.len();
+        let required_width = UnicodeWidthStr::width(format!(" [{total}/{total}]").as_str());
+        if required_width == status_width {
+            return pages;
+        }
+        status_width = required_width;
     }
 
-    flattened
-        .graphemes(true)
-        .collect::<Vec<_>>()
-        .chunks(PAGE_GRAPHEME_LIMIT)
-        .map(<[&str]>::concat)
-        .collect()
+    paginate_with_status_width(text, width, height, status_width)
+}
+
+fn paginate_with_status_width(
+    text: &str,
+    width: usize,
+    height: usize,
+    status_width: usize,
+) -> Vec<ReaderPage> {
+    let final_row_width = width.saturating_sub(status_width).max(1);
+    let mut pages = Vec::new();
+    let mut completed_lines = 0usize;
+    let mut current_line = String::new();
+    let mut current_line_width = 0usize;
+    let mut current_line_start = 0usize;
+    let mut grapheme_offset = 0usize;
+
+    for grapheme in text.graphemes(true) {
+        if grapheme == "\n" {
+            push_reader_line(
+                &mut pages,
+                &mut completed_lines,
+                height,
+                std::mem::take(&mut current_line),
+                current_line_start,
+            );
+            current_line_width = 0;
+            grapheme_offset += 1;
+            current_line_start = grapheme_offset;
+            continue;
+        }
+
+        let grapheme_width = UnicodeWidthStr::width(grapheme).max(1);
+        loop {
+            let row_in_page = completed_lines % height;
+            let row_width = if row_in_page == height - 1 {
+                final_row_width
+            } else {
+                width
+            };
+            if current_line_width + grapheme_width > row_width && !current_line.is_empty() {
+                push_reader_line(
+                    &mut pages,
+                    &mut completed_lines,
+                    height,
+                    std::mem::take(&mut current_line),
+                    current_line_start,
+                );
+                current_line_width = 0;
+                current_line_start = grapheme_offset;
+                continue;
+            }
+            current_line.push_str(grapheme);
+            current_line_width += grapheme_width;
+            break;
+        }
+        grapheme_offset += 1;
+    }
+
+    if !current_line.is_empty() || text.is_empty() || text.ends_with('\n') {
+        push_reader_line(
+            &mut pages,
+            &mut completed_lines,
+            height,
+            current_line,
+            current_line_start,
+        );
+    }
+    if pages.is_empty() {
+        pages.push(ReaderPage {
+            lines: vec![String::new()],
+            start_grapheme_offset: 0,
+        });
+    }
+    pages
+}
+
+fn push_reader_line(
+    pages: &mut Vec<ReaderPage>,
+    completed_lines: &mut usize,
+    page_height: usize,
+    line: String,
+    start_grapheme_offset: usize,
+) {
+    if *completed_lines % page_height == 0 {
+        pages.push(ReaderPage {
+            lines: Vec::with_capacity(page_height),
+            start_grapheme_offset,
+        });
+    }
+    if let Some(page) = pages.last_mut() {
+        page.lines.push(line);
+    }
+    *completed_lines += 1;
 }
 
 fn resolve_path(path: &Path, cwd: &Path) -> PathBuf {
@@ -382,15 +563,19 @@ fn read_progress_store(path: &Path) -> ProgressStore {
         .unwrap_or_default()
 }
 
-fn load_page(path: &Path, key: &str, fingerprint: &str, page_count: usize) -> usize {
+fn load_grapheme_offset(path: &Path, key: &str, fingerprint: &str) -> usize {
     read_progress_store(path)
         .entries
         .get(key)
-        .filter(|progress| {
-            progress.file_fingerprint == fingerprint
-                && progress.page_grapheme_limit == PAGE_GRAPHEME_LIMIT
+        .filter(|progress| progress.file_fingerprint == fingerprint)
+        .map(|progress| {
+            progress.grapheme_offset.unwrap_or_else(|| {
+                progress
+                    .page
+                    .saturating_sub(1)
+                    .saturating_mul(progress.page_grapheme_limit)
+            })
         })
-        .map(|progress| progress.page.saturating_sub(1).min(page_count - 1))
         .unwrap_or_default()
 }
 
