@@ -77,6 +77,27 @@ fn mouse_scroll_speed_rejects_nonpositive_and_nonfinite_values() {
 }
 
 #[test]
+fn reader_height_defaults_and_accepts_configured_rows() {
+    assert_eq!(Tui::default().reader_height, None);
+    assert_eq!(
+        toml::from_str::<Tui>("reader_height = 3")
+            .expect("reader height")
+            .reader_height,
+        Some(3)
+    );
+    for value in ["0", "13"] {
+        let error = toml::from_str::<Tui>(&format!("reader_height = {value}"))
+            .expect_err("reader height outside supported range");
+        assert!(
+            error
+                .to_string()
+                .contains("tui.reader_height must be between 1 and 12"),
+            "{error}"
+        );
+    }
+}
+
+#[test]
 fn deserialize_skill_config_with_name_selector() {
     let cfg: SkillConfig = toml::from_str(
         r#"

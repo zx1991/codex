@@ -88,18 +88,62 @@ async fn reader_renders_in_owned_transcript() -> Result<()> {
 
     let mut tui = crate::tui::test_support::make_test_tui()?;
     tui.set_owned_screen(/*owned*/ true)?;
-    let size = Size::new(/*width*/ 60, /*height*/ 8);
+    let size = Size::new(/*width*/ 60, /*height*/ 12);
     tui.terminal.resize(size)?;
     app.render_owned_transcript(&mut tui, size)?;
 
     let rendered = buffer_text(crate::custom_terminal::test_support::last_rendered_buffer(
         &tui.terminal,
     ));
-    let reader_line = rendered.lines().next().unwrap_or("");
-    assert!(reader_line.contains("[1/1] reader page content"));
-    insta::assert_snapshot!(reader_line, @"[1/1] reader page content");
+    let rows = rendered.lines().collect::<Vec<_>>();
+    let content_row = rows
+        .iter()
+        .position(|row| row.contains("reader page content"))
+        .expect("reader content is visible");
+    let status_row = rows
+        .iter()
+        .position(|row| row.contains("[1/1]"))
+        .expect("reader page status is visible");
+    assert!(content_row > 0, "reader is below the transcript");
+    assert_eq!(status_row, content_row + 2, "status follows the final row");
 
     tui.set_owned_screen(/*owned*/ false)?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn reader_escape_closes_before_owned_transcript_navigation() -> Result<()> {
+    let mut app = crate::app::test_support::make_test_app().await;
+    attach_thread(&mut app, ThreadId::new());
+    app.transcript_cells = vec![user_cell("Current prompt")];
+    let temp = tempfile::tempdir()?;
+    let path = temp.path().join("reader.txt");
+    std::fs::write(&path, "reader page content")?;
+    app.reader = Some(super::super::reader::Reader::open(
+        &path,
+        temp.path(),
+        temp.path(),
+    )?);
+
+    let escape = KeyCode::Esc.into();
+    assert!(app.should_handle_backtrack_esc(escape));
+    app.overlay = Some(Overlay::new_static_with_lines(
+        vec!["overlay".into()],
+        "Overlay".to_string(),
+        app.keymap.pager.clone(),
+    ));
+    let mut app_server = Box::pin(crate::start_embedded_app_server_for_picker(&app.config)).await?;
+    let mut tui = crate::tui::test_support::make_test_tui()?;
+    tui.set_owned_screen(/*owned*/ true)?;
+    app.render_owned_transcript(&mut tui, Size::new(/*width*/ 60, /*height*/ 8))?;
+
+    app.handle_tui_event(&mut tui, &mut app_server, TuiEvent::Key(escape))
+        .await?;
+
+    assert!(app.reader.is_none());
+    assert!(app.overlay.is_some(), "reader handles Esc before overlays");
+    tui.set_owned_screen(/*owned*/ false)?;
+    app_server.shutdown().await?;
     Ok(())
 }
 
