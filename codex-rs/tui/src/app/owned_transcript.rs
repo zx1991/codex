@@ -204,12 +204,22 @@ impl App {
                 .min(screen_size.height)
         };
         drop(bottom);
+        if let Some(reader) = self.reader.as_mut() {
+            reader.set_configured_height(self.local_settings.tui.reader_height.unwrap_or(3));
+        }
+        let reader_height = self
+            .reader
+            .as_ref()
+            .filter(|reader| reader.visible())
+            .map_or(0, |reader| {
+                reader
+                    .desired_height(screen_size.width)
+                    .min(screen_size.height.saturating_sub(bottom_height))
+            });
+        if let Some(reader) = self.reader.as_mut().filter(|reader| reader.visible()) {
+            reader.reflow(screen_size.width, reader_height);
+        }
         let reader = self.reader.as_ref().filter(|reader| reader.visible());
-        let reader_height = reader.map_or(0, |reader| {
-            reader
-                .desired_height(screen_size.width)
-                .min(screen_size.height.saturating_sub(bottom_height))
-        });
         let available = screen_size
             .height
             .saturating_sub(bottom_height)
@@ -229,23 +239,23 @@ impl App {
             chat_widget.rendered_selection.borrow_mut().areas.clear();
             if let Some(reader) = reader {
                 reader.render(
-                    Rect::new(/*x*/ 0, /*y*/ 0, screen_size.width, reader_height),
+                    Rect::new(
+                        /*x*/ 0,
+                        /*y*/ available,
+                        screen_size.width,
+                        reader_height,
+                    ),
                     frame.buffer,
                 );
             }
             ratatui::widgets::Clear.render(
-                Rect::new(
-                    /*x*/ 0,
-                    /*y*/ reader_height,
-                    screen_size.width,
-                    available,
-                ),
+                Rect::new(/*x*/ 0, /*y*/ 0, screen_size.width, available),
                 frame.buffer,
             );
             let mut completion_tip_area = view.render_with_turn_tip_space(
                 Rect::new(
                     /*x*/ 0,
-                    /*y*/ reader_height,
+                    /*y*/ 0,
                     transcript_width,
                     transcript_bottom,
                 ),
@@ -306,7 +316,7 @@ impl App {
                 completion_tip_area = view.render_with_turn_tip_space(
                     Rect::new(
                         /*x*/ 0,
-                        /*y*/ reader_height,
+                        /*y*/ 0,
                         transcript_width,
                         transcript_bottom,
                     ),
@@ -341,7 +351,7 @@ impl App {
                 (available > 0).then(|| {
                     Rect::new(
                         /*x*/ 0,
-                        reader_height + available - 1,
+                        available - 1,
                         transcript_width,
                         /*height*/ 1,
                     )

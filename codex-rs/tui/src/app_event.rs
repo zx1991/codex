@@ -496,12 +496,12 @@ pub(crate) enum AppEvent {
         kept: Vec<crate::history_cell::WarningEntry>,
     },
 
-    /// Open a local text file in the single-line reader.
+    /// Open a local text file in the reader.
     OpenReader {
         path: PathBuf,
     },
 
-    /// Reopen the last file used by the single-line reader.
+    /// Reopen the last file used by the reader.
     OpenPreviousReader,
 
     /// Export all current-thread history to the selected destination.
