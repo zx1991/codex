@@ -57,6 +57,7 @@ use codex_config::types::ToolSuggestDiscoverable;
 use codex_config::types::TuiKeymap;
 use codex_config::types::TuiNotificationSettings;
 use codex_config::types::TuiPetAnchor;
+use codex_config::types::TuiReaderAlignment;
 use codex_config::types::UriBasedFileOpener;
 use codex_config::types::WindowsSandboxModeToml;
 use codex_core_plugins::PluginLoadOutcome;
@@ -838,6 +839,12 @@ pub struct Config {
 
     /// Number of rows reserved for the local text reader.
     pub tui_reader_height: Option<u16>,
+
+    /// Maximum line width of the local text reader.
+    pub tui_reader_width: Option<u16>,
+
+    /// Horizontal placement of the local text reader's content column.
+    pub tui_reader_alignment: TuiReaderAlignment,
 
     /// Override the terminal default for copying transcript, footer, and composer selections.
     pub tui_copy_on_select: codex_config::types::CopyOnSelect,
@@ -4780,6 +4787,12 @@ impl Config {
                 .is_none_or(|tui| tui.fullscreen_transcript),
             tui_mouse_scroll_speed: cfg.tui.as_ref().and_then(|tui| tui.mouse_scroll_speed),
             tui_reader_height: cfg.tui.as_ref().and_then(|tui| tui.reader_height),
+            tui_reader_width: cfg.tui.as_ref().and_then(|tui| tui.reader_width),
+            tui_reader_alignment: cfg
+                .tui
+                .as_ref()
+                .map(|tui| tui.reader_alignment)
+                .unwrap_or_default(),
             tui_copy_on_select: cfg
                 .tui
                 .as_ref()

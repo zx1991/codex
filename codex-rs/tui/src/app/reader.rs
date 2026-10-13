@@ -1,11 +1,11 @@
 use super::*;
 use crate::render::renderable::Renderable;
+use codex_config::types::TuiReaderAlignment;
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use crossterm::event::KeyEventKind;
 use crossterm::event::KeyModifiers;
 use ratatui::buffer::Buffer;
-use ratatui::layout::Alignment;
 use ratatui::layout::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::Line;
@@ -28,6 +28,7 @@ use unicode_width::UnicodeWidthStr;
 const DEFAULT_READER_HEIGHT: u16 = 3;
 #[cfg(test)]
 const DEFAULT_PAGE_WIDTH: u16 = 80;
+const DEFAULT_READER_WIDTH: u16 = 88;
 const LEGACY_PAGE_GRAPHEME_LIMIT: usize = 35;
 const PROGRESS_FILE_NAME: &str = "reader-progress.json";
 
@@ -40,6 +41,9 @@ pub(crate) struct Reader {
     visible: bool,
     page_input: Option<String>,
     configured_height: u16,
+    configured_width: u16,
+    alignment: TuiReaderAlignment,
+    terminal_width: u16,
     layout_width: u16,
     layout_height: u16,
     progress_path: PathBuf,
@@ -113,6 +117,9 @@ impl Reader {
             visible: true,
             page_input: None,
             configured_height: height.clamp(1, 12),
+            configured_width: DEFAULT_READER_WIDTH,
+            alignment: TuiReaderAlignment::default(),
+            terminal_width: 0,
             layout_width: 0,
             layout_height: 0,
             progress_path,
@@ -181,8 +188,20 @@ impl Reader {
         let height = height.clamp(1, 12);
         if self.configured_height != height {
             self.configured_height = height;
-            self.reflow(self.layout_width.max(1), height);
+            self.reflow(self.terminal_width.max(1), height);
         }
+    }
+
+    pub(crate) fn set_configured_width(&mut self, width: Option<u16>) {
+        let width = width.unwrap_or(DEFAULT_READER_WIDTH).clamp(20, 240);
+        if self.configured_width != width {
+            self.configured_width = width;
+            self.reflow(self.terminal_width.max(1), self.layout_height.max(1));
+        }
+    }
+
+    pub(crate) fn set_alignment(&mut self, alignment: TuiReaderAlignment) {
+        self.alignment = alignment;
     }
 
     pub(crate) fn configured_height(&self) -> u16 {
@@ -190,14 +209,17 @@ impl Reader {
     }
 
     pub(crate) fn reflow(&mut self, width: u16, height: u16) {
-        let width = width.max(1);
+        let terminal_width = width.max(1);
+        let width = terminal_width.min(self.configured_width);
         let height = height.max(1);
         if self.layout_width == width && self.layout_height == height {
+            self.terminal_width = terminal_width;
             return;
         }
 
         let current_offset = self.current_grapheme_offset();
         self.pages = paginate(&self.text, width, height);
+        self.terminal_width = terminal_width;
         self.layout_width = width;
         self.layout_height = height;
         self.current_page = self.page_for_offset(current_offset);
@@ -313,9 +335,21 @@ impl Renderable for Reader {
             return;
         }
         Clear.render(area, buffer);
+        let content_width = self.layout_width.min(area.width);
+        let horizontal_offset = match self.alignment {
+            TuiReaderAlignment::Left => 0,
+            TuiReaderAlignment::Center => area.width.saturating_sub(content_width) / 2,
+            TuiReaderAlignment::Right => area.width.saturating_sub(content_width),
+        };
+        let content_area = Rect::new(
+            area.x.saturating_add(horizontal_offset),
+            area.y,
+            content_width,
+            area.height,
+        );
         Paragraph::new(self.display_lines())
-            .alignment(Alignment::Left)
-            .render(area, buffer);
+            .alignment(ratatui::layout::Alignment::Left)
+            .render(content_area, buffer);
     }
 
     fn desired_height(&self, _width: u16) -> u16 {
@@ -335,6 +369,8 @@ impl App {
             Ok(mut reader) => {
                 reader.set_configured_height(self.local_settings.tui.reader_height.unwrap_or(3));
                 let configured_height = reader.configured_height();
+                reader.set_configured_width(self.local_settings.tui.reader_width);
+                reader.set_alignment(self.local_settings.tui.reader_alignment);
                 reader.reflow(tui.terminal.last_known_screen_size.width, configured_height);
                 let previous_reader = self.reader.replace(reader);
                 if let Some(previous_reader) = previous_reader {

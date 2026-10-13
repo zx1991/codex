@@ -1267,6 +1267,8 @@ impl App {
         }
         if let Some(reader) = self.reader.as_mut() {
             reader.set_configured_height(self.local_settings.tui.reader_height.unwrap_or(3));
+            reader.set_configured_width(self.local_settings.tui.reader_width);
+            reader.set_alignment(self.local_settings.tui.reader_alignment);
             reader.reflow(screen_size.width, reader.configured_height());
         }
         self.chat_widget
