@@ -98,6 +98,41 @@ fn reader_height_defaults_and_accepts_configured_rows() {
 }
 
 #[test]
+fn reader_width_defaults_and_accepts_configured_columns() {
+    assert_eq!(Tui::default().reader_width, None);
+    assert_eq!(
+        toml::from_str::<Tui>("reader_width = 88")
+            .expect("reader width")
+            .reader_width,
+        Some(88)
+    );
+    for value in ["19", "241"] {
+        let error = toml::from_str::<Tui>(&format!("reader_width = {value}"))
+            .expect_err("reader width outside supported range");
+        assert!(
+            error
+                .to_string()
+                .contains("tui.reader_width must be between 20 and 240"),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn reader_alignment_defaults_to_left_and_accepts_all_placements() {
+    assert_eq!(Tui::default().reader_alignment, TuiReaderAlignment::Left);
+    for (value, expected) in [
+        ("left", TuiReaderAlignment::Left),
+        ("center", TuiReaderAlignment::Center),
+        ("right", TuiReaderAlignment::Right),
+    ] {
+        let tui: Tui = toml::from_str(&format!("reader_alignment = \"{value}\"")).unwrap();
+        assert_eq!(tui.reader_alignment, expected);
+    }
+    assert!(toml::from_str::<Tui>("reader_alignment = \"middle\"").is_err());
+}
+
+#[test]
 fn deserialize_skill_config_with_name_selector() {
     let cfg: SkillConfig = toml::from_str(
         r#"
