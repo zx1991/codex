@@ -174,3 +174,30 @@ fn page_jump_and_left_aligned_rendering_work_with_multiple_rows() {
     let jump = render_rows(&reader, 41, 3);
     assert!(jump[2].ends_with("[2/2]"));
 }
+
+#[test]
+fn reader_width_caps_long_lines_and_alignment_places_the_column() {
+    let temp = tempdir().expect("temp directory");
+    let path = temp.path().join("book.txt");
+    fs::write(&path, format!("first row\n{}\nthird row", "x".repeat(80))).expect("write book");
+    let mut reader =
+        Reader::open_with_layout(&path, temp.path(), temp.path(), 120, 3).expect("open book");
+    reader.set_configured_width(Some(40));
+
+    assert_eq!(reader.layout_width, 40);
+    assert_eq!(reader.page_count(), 2);
+    assert_eq!(reader.pages[0].lines[1], "x".repeat(40));
+    assert_eq!(render_rows(&reader, 120, 3)[0], "first row");
+
+    reader.set_alignment(TuiReaderAlignment::Center);
+    assert_eq!(
+        render_rows(&reader, 120, 3)[0],
+        format!("{}first row", " ".repeat(40))
+    );
+
+    reader.set_alignment(TuiReaderAlignment::Right);
+    assert_eq!(
+        render_rows(&reader, 120, 3)[0],
+        format!("{}first row", " ".repeat(80))
+    );
+}

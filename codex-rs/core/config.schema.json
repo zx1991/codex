@@ -5042,12 +5042,29 @@
           "description": "Start the TUI in raw scrollback mode for copy-friendly transcript output. Defaults to `false`.",
           "type": "boolean"
         },
+        "reader_alignment": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/TuiReaderAlignment"
+            }
+          ],
+          "default": "left",
+          "description": "Horizontal placement of the local text reader's content column. Defaults to `left`."
+        },
         "reader_height": {
           "default": null,
           "description": "Number of rows reserved for the local text reader. Defaults to three rows.",
           "format": "uint16",
           "maximum": 12.0,
           "minimum": 1.0,
+          "type": "integer"
+        },
+        "reader_width": {
+          "default": null,
+          "description": "Maximum line width of the local text reader. Defaults to 88 terminal columns.",
+          "format": "uint16",
+          "maximum": 240.0,
+          "minimum": 20.0,
           "type": "integer"
         },
         "rendering": {
@@ -6241,6 +6258,15 @@
           "type": "string"
         }
       ]
+    },
+    "TuiReaderAlignment": {
+      "description": "Horizontal placement of the local text reader's content column.",
+      "enum": [
+        "left",
+        "center",
+        "right"
+      ],
+      "type": "string"
     },
     "TuiRendering": {
       "additionalProperties": false,

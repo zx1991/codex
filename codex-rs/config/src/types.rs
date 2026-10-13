@@ -96,6 +96,16 @@ pub enum SessionPickerViewMode {
     Dense,
 }
 
+/// Horizontal placement of the local text reader's content column.
+#[derive(Serialize, Deserialize, Debug, Default, Copy, Clone, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum TuiReaderAlignment {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
+
 impl SessionPickerViewMode {
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -922,6 +932,15 @@ pub struct Tui {
     #[schemars(range(min = 1, max = 12))]
     pub reader_height: Option<u16>,
 
+    /// Maximum line width of the local text reader. Defaults to 88 terminal columns.
+    #[serde(default, deserialize_with = "deserialize_tui_reader_width")]
+    #[schemars(range(min = 20, max = 240))]
+    pub reader_width: Option<u16>,
+
+    /// Horizontal placement of the local text reader's content column. Defaults to `left`.
+    #[serde(default)]
+    pub reader_alignment: TuiReaderAlignment,
+
     /// Copy selected transcript, footer, or composer text when the mouse button is released.
     /// Defaults to `auto`: enabled except in direct terminals known to forward their native
     /// copy shortcut (Ghostty 1.2+, Kitty on macOS, Windows Terminal, and VS Code on Windows).
@@ -1040,6 +1059,19 @@ where
         ));
     }
     Ok(height)
+}
+
+fn deserialize_tui_reader_width<'de, D>(deserializer: D) -> Result<Option<u16>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let width = Option::<u16>::deserialize(deserializer)?;
+    if width.is_some_and(|width| !(20..=240).contains(&width)) {
+        return Err(serde::de::Error::custom(
+            "tui.reader_width must be between 20 and 240",
+        ));
+    }
+    Ok(width)
 }
 
 /// Settings for notices we display to users via the tui and app-server clients
