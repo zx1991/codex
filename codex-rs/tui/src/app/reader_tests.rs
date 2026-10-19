@@ -123,7 +123,7 @@ fn progress_remembers_the_last_reader_file() {
 }
 
 #[tokio::test]
-async fn ctrl_h_hides_reader_without_consuming_composer_draft() {
+async fn k_toggles_reader_without_consuming_composer_draft() {
     let temp = tempdir().expect("temp directory");
     let path = temp.path().join("book.txt");
     fs::write(&path, "reader content").expect("write book");
@@ -133,8 +133,17 @@ async fn ctrl_h_hides_reader_without_consuming_composer_draft() {
     app.chat_widget.apply_external_edit("draft".to_string());
     let mut tui = crate::tui::test_support::make_test_tui().expect("create test terminal");
     let ctrl_h = KeyEvent::new(KeyCode::Char('h'), KeyModifiers::CONTROL);
+    let toggle = KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE);
 
-    assert!(app.handle_reader_key_event(&mut tui, ctrl_h));
+    assert!(!app.handle_reader_key_event(&mut tui, ctrl_h));
+    assert!(
+        app.reader
+            .as_ref()
+            .expect("reader should remain open")
+            .visible()
+    );
+
+    assert!(app.handle_reader_key_event(&mut tui, toggle));
     assert!(
         !app.reader
             .as_ref()
@@ -143,9 +152,9 @@ async fn ctrl_h_hides_reader_without_consuming_composer_draft() {
     );
     assert_eq!(app.chat_widget.composer_text_with_pending(), "draft");
 
-    let mut ctrl_h_repeat = ctrl_h;
-    ctrl_h_repeat.kind = KeyEventKind::Repeat;
-    assert!(!app.handle_reader_key_event(&mut tui, ctrl_h_repeat));
+    let mut toggle_repeat = toggle;
+    toggle_repeat.kind = KeyEventKind::Repeat;
+    assert!(!app.handle_reader_key_event(&mut tui, toggle_repeat));
     assert!(
         !app.reader
             .as_ref()
@@ -153,7 +162,7 @@ async fn ctrl_h_hides_reader_without_consuming_composer_draft() {
             .visible()
     );
 
-    assert!(app.handle_reader_key_event(&mut tui, ctrl_h));
+    assert!(app.handle_reader_key_event(&mut tui, toggle));
     assert!(
         app.reader
             .as_ref()
