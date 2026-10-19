@@ -88,6 +88,24 @@ async fn bare_reader_command_reopens_the_previous_file() {
 
     assert_matches!(rx.try_recv(), Ok(AppEvent::OpenPreviousReader));
 }
+
+#[tokio::test]
+async fn reader_recent_command_lists_and_opens_by_position() {
+    let (mut chat, _app_event_tx, mut rx, _op_rx) = make_chatwidget_manual_with_sender().await;
+
+    chat.dispatch_command_with_args(SlashCommand::Reader, "recent".to_string(), Vec::new());
+    assert_matches!(
+        rx.try_recv(),
+        Ok(AppEvent::ReaderRecentFiles { index: None })
+    );
+
+    chat.dispatch_command_with_args(SlashCommand::Reader, "recent 2".to_string(), Vec::new());
+    assert_matches!(
+        rx.try_recv(),
+        Ok(AppEvent::ReaderRecentFiles { index: Some(2) })
+    );
+}
+
 fn next_add_to_history_event(rx: &mut tokio::sync::mpsc::UnboundedReceiver<AppEvent>) -> String {
     loop {
         match rx.try_recv() {

@@ -512,6 +512,11 @@ pub(crate) enum AppEvent {
     /// Reopen the last file used by the reader.
     OpenPreviousReader,
 
+    /// List recent reader files or open one by its one-based position.
+    ReaderRecentFiles {
+        index: Option<usize>,
+    },
+
     /// Export all current-thread history to the selected destination.
     ExportTranscript {
         destination: TranscriptExportDestination,

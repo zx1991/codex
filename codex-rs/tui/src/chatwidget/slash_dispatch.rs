@@ -1125,9 +1125,20 @@ impl ChatWidget {
                     .send(AppEvent::ResumeSessionByIdOrName(args));
             }
             SlashCommand::Reader if !trimmed.is_empty() => {
-                self.app_event_tx.send(AppEvent::OpenReader {
-                    path: PathBuf::from(trimmed),
-                });
+                if let Some(index) = parse_reader_recent_index(trimmed) {
+                    match index {
+                        Ok(index) => self
+                            .app_event_tx
+                            .send(AppEvent::ReaderRecentFiles { index }),
+                        Err(()) => {
+                            self.add_error_message("Usage: /reader recent [number]".to_string())
+                        }
+                    }
+                } else {
+                    self.app_event_tx.send(AppEvent::OpenReader {
+                        path: PathBuf::from(trimmed),
+                    });
+                }
             }
             SlashCommand::Pets
                 if matches!(
@@ -1424,4 +1435,21 @@ impl ChatWidget {
         self.bottom_pane.drain_pending_submission_state();
         false
     }
+}
+
+fn parse_reader_recent_index(args: &str) -> Option<Result<Option<usize>, ()>> {
+    let mut parts = args.split_whitespace();
+    if !parts.next()?.eq_ignore_ascii_case("recent") {
+        return None;
+    }
+    Some(match (parts.next(), parts.next()) {
+        (None, None) => Ok(None),
+        (Some(index), None) => index
+            .parse::<usize>()
+            .ok()
+            .filter(|index| *index > 0)
+            .map(Some)
+            .ok_or(()),
+        _ => Err(()),
+    })
 }

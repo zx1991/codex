@@ -428,6 +428,9 @@ impl App {
             AppEvent::OpenPreviousReader => {
                 self.open_previous_reader(tui);
             }
+            AppEvent::ReaderRecentFiles { index } => {
+                self.open_recent_reader(tui, index);
+            }
             AppEvent::ExportTranscript { destination } => {
                 if let Err(error) = self.export_transcript(tui, app_server, destination).await {
                     self.chat_widget
